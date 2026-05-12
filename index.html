@@ -140,33 +140,60 @@
     let lastScanned = "";
     let lastScanTime = 0;
 
-    function startScanner() {
+    async function startScanner() {
       if (scanner) return;
 
-      scanner = new Html5Qrcode("reader");
-
-      scanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 150 } },
-        function(decodedText) {
-          const now = Date.now();
-
-          // Prevent duplicate rapid scans of the same barcode
-          if (decodedText === lastScanned && now - lastScanTime < 2000) {
-            return;
-          }
-
-          lastScanned = decodedText;
-          lastScanTime = now;
-          addBarcode(decodedText);
-        },
-        function(errorMessage) {
-          // Ignore scan errors while camera is searching
+      try {
+        if (!window.isSecureContext) {
+          alert("Camera needs HTTPS. Your page must start with https://");
+          return;
         }
-      ).catch(function(err) {
-        alert("Camera could not start. Please check camera permission or use HTTPS.");
+
+        scanner = new Html5Qrcode("reader", true);
+
+        const cameras = await Html5Qrcode.getCameras();
+        if (!cameras || cameras.length === 0) {
+          alert("No camera found. Please check browser camera permission.");
+          scanner = null;
+          return;
+        }
+
+        // Prefer the back/environment camera when available
+        let cameraId = cameras[0].id;
+        const backCamera = cameras.find(function(camera) {
+          return /back|rear|environment/i.test(camera.label);
+        });
+
+        if (backCamera) {
+          cameraId = backCamera.id;
+        } else if (cameras.length > 1) {
+          cameraId = cameras[cameras.length - 1].id;
+        }
+
+        await scanner.start(
+          cameraId,
+          { fps: 10, qrbox: { width: 250, height: 150 } },
+          function(decodedText) {
+            const now = Date.now();
+
+            // Prevent duplicate rapid scans of the same barcode
+            if (decodedText === lastScanned && now - lastScanTime < 2000) {
+              return;
+            }
+
+            lastScanned = decodedText;
+            lastScanTime = now;
+            addBarcode(decodedText);
+          },
+          function(errorMessage) {
+            // Ignore scan errors while camera is searching
+          }
+        );
+      } catch (err) {
+        console.error(err);
+        alert("Camera could not start: " + (err && err.message ? err.message : err));
         scanner = null;
-      });
+      }
     }
 
     function stopScanner() {
