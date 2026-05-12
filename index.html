@@ -155,7 +155,7 @@
 
     <div class="card">
       <div id="reader"></div>
-      <div id="status" class="status">App loading...</div>
+      <div id="status" class="status">Loading app...</div>
 
       <div class="row">
         <button id="startBtn" type="button">Start Scanner</button>
@@ -197,7 +197,6 @@
     var candidateBarcode = "";
     var candidateCount = 0;
     var scannerPaused = false;
-    var libraryReady = false;
 
     var STORAGE_KEY = "barcodeScannerApp_barcodes";
     var CONFIRM_KEY = "barcodeScannerApp_confirmLevel";
@@ -230,21 +229,16 @@
       loadSettings();
       loadFromPhone();
 
-      if (window.isSecureContext) {
-        setStatus("Ready. Tap Start Scanner.");
-      } else {
+      if (!window.isSecureContext) {
         setStatus("This page is not running on HTTPS. Camera will not work. Use your Netlify https:// link.");
+        return;
       }
 
-      setTimeout(function() {
-        if (typeof Html5Qrcode === "undefined") {
-          libraryReady = false;
-          setStatus("Scanner library did not load. Check internet connection, then refresh the page.");
-        } else {
-          libraryReady = true;
-          setStatus("Ready. Tap Start Scanner.");
-        }
-      }, 800);
+      if (typeof Html5Qrcode === "undefined") {
+        setStatus("Ready, but scanner library is still loading. Wait 2 seconds, then tap Start Scanner.");
+      } else {
+        setStatus("Ready. Tap Start Scanner.");
+      }
     }
 
     async function startScanner() {
@@ -257,7 +251,7 @@
         }
 
         if (typeof Html5Qrcode === "undefined") {
-          setStatus("Scanner library is not loaded. Refresh the page. If it still fails, your internet may be blocking the library CDN.");
+          setStatus("Scanner library is not loaded yet. Refresh the page and try again.");
           return;
         }
 
@@ -340,8 +334,7 @@
       }
 
       var needed = Number(confirmLevel.value || 3);
-      setStatus("Checking: " + code + "
-Confirmation: " + candidateCount + " / " + needed);
+      setStatus("Checking: " + code + "\nConfirmation: " + candidateCount + " / " + needed);
 
       if (candidateCount >= needed) {
         addBarcode(code, true);
@@ -417,13 +410,11 @@ Confirmation: " + candidateCount + " / " + needed);
         return;
       }
 
-      var csv = "barcode
-";
+      var csv = "barcode\n";
 
       for (var i = 0; i < barcodes.length; i++) {
         var value = String(barcodes[i]).replace(/"/g, '""');
-        csv = csv + '="' + value + '"
-';
+        csv = csv + '="' + value + '"\n';
       }
 
       var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
