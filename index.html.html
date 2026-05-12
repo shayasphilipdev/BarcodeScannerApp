@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Barcode CSV Scanner</title>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f5f5f5;
+      color: #222;
+    }
+
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    #reader {
+      width: 100%;
+      overflow: hidden;
+      border-radius: 10px;
+    }
+
+    button, input {
+      width: 100%;
+      padding: 12px;
+      margin-top: 8px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+
+    button {
+      background: #111;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: #666;
+    }
+
+    button.danger {
+      background: #b00020;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .row button {
+      flex: 1;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #eee;
+      word-break: break-all;
+    }
+
+    li button {
+      width: auto;
+      margin: 0;
+      padding: 6px 10px;
+      font-size: 14px;
+      background: #b00020;
+    }
+
+    .count {
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    .note {
+      font-size: 14px;
+      color: #666;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Barcode CSV Scanner</h1>
+    <p class="note">Scan product barcodes with your phone camera, then download the list as a CSV file.</p>
+
+    <div class="card">
+      <div id="reader"></div>
+      <div class="row">
+        <button onclick="startScanner()">Start Scanner</button>
+        <button class="secondary" onclick="stopScanner()">Stop</button>
+      </div>
+      <p class="note">Tip: Use Chrome or Safari on your phone and allow camera permission.</p>
+    </div>
+
+    <div class="card">
+      <input id="manualBarcode" type="text" placeholder="Enter barcode manually" />
+      <button onclick="addManualBarcode()">Add Manual Barcode</button>
+    </div>
+
+    <div class="card">
+      <div class="count">Total barcodes: <span id="count">0</span></div>
+      <ul id="barcodeList"></ul>
+      <button onclick="downloadCSV()">Download CSV</button>
+      <button class="danger" onclick="clearAll()">Clear All</button>
+    </div>
+  </div>
+
+  <script>
+    let scanner;
+    let barcodes = [];
+    let lastScanned = "";
+    let lastScanTime = 0;
+
+    function startScanner() {
+      if (scanner) return;
+
+      scanner = new Html5Qrcode("reader");
+
+      scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 150 } },
+        function(decodedText) {
+          const now = Date.now();
+
+          // Prevent duplicate rapid scans of the same barcode
+          if (decodedText === lastScanned && now - lastScanTime < 2000) {
+            return;
+          }
+
+          lastScanned = decodedText;
+          lastScanTime = now;
+          addBarcode(decodedText);
+        },
+        function(errorMessage) {
+          // Ignore scan errors while camera is searching
+        }
+      ).catch(function(err) {
+        alert("Camera could not start. Please check camera permission or use HTTPS.");
+        scanner = null;
+      });
+    }
+
+    function stopScanner() {
+      if (!scanner) return;
+
+      scanner.stop().then(function() {
+        scanner.clear();
+        scanner = null;
+      });
+    }
+
+    function addBarcode(code) {
+      code = String(code).trim();
+      if (!code) return;
+
+      if (barcodes.includes(code)) {
+        alert("This barcode is already in the list.");
+        return;
+      }
+
+      barcodes.push(code);
+      saveToPhone();
+      renderList();
+    }
+
+    function addManualBarcode() {
+      const input = document.getElementById("manualBarcode");
+      addBarcode(input.value);
+      input.value = "";
+    }
+
+    function removeBarcode(index) {
+      barcodes.splice(index, 1);
+      saveToPhone();
+      renderList();
+    }
+
+    function renderList() {
+      const list = document.getElementById("barcodeList");
+      const count = document.getElementById("count");
+
+      list.innerHTML = "";
+      count.textContent = barcodes.length;
+
+      barcodes.forEach(function(code, index) {
+        const li = document.createElement("li");
+        li.innerHTML = `<span>${index + 1}. ${escapeHtml(code)}</span><button onclick="removeBarcode(${index})">Remove</button>`;
+        list.appendChild(li);
+      });
+    }
+
+    function downloadCSV() {
+      if (barcodes.length === 0) {
+        alert("No barcodes to download.");
+        return;
+      }
+
+      let csv = "barcode\n";
+      barcodes.forEach(function(code) {
+        csv += `"${String(code).replaceAll('"', '""')}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "barcode-list.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    function clearAll() {
+      if (!confirm("Clear all scanned barcodes?")) return;
+      barcodes = [];
+      saveToPhone();
+      renderList();
+    }
+
+    function saveToPhone() {
+      localStorage.setItem("barcodeList", JSON.stringify(barcodes));
+    }
+
+    function loadFromPhone() {
+      const saved = localStorage.getItem("barcodeList");
+      if (saved) {
+        barcodes = JSON.parse(saved);
+      }
+      renderList();
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    loadFromPhone();
+  </script>
+</body>
+</html>
