@@ -93,11 +93,12 @@
       display: none;
       background: #e8f5e9;
       color: #1b5e20;
-      padding: 12px;
+      padding: 24px;
       border-radius: 8px;
       margin: 12px 0;
       font-weight: bold;
       text-align: center;
+      font-size: 32px;
     }
 
     .status {
@@ -339,7 +340,8 @@
       }
 
       var needed = Number(confirmLevel.value || 3);
-      setStatus("Checking: " + code + "\nConfirmation: " + candidateCount + " / " + needed);
+      setStatus("Checking: " + code + "
+Confirmation: " + candidateCount + " / " + needed);
 
       if (candidateCount >= needed) {
         addBarcode(code, true);
@@ -415,11 +417,13 @@
         return;
       }
 
-      var csv = "barcode\n";
+      var csv = "barcode
+";
 
       for (var i = 0; i < barcodes.length; i++) {
         var value = String(barcodes[i]).replace(/"/g, '""');
-        csv = csv + '="' + value + '"\n';
+        csv = csv + '="' + value + '"
+';
       }
 
       var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
