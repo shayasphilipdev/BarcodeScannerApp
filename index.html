@@ -38,7 +38,7 @@
       border-radius: 10px;
     }
 
-    button, input {
+    button, input, select {
       width: 100%;
       padding: 12px;
       margin-top: 8px;
@@ -105,6 +105,27 @@
       color: #666;
       line-height: 1.4;
     }
+
+    .success {
+      display: none;
+      background: #e8f5e9;
+      color: #1b5e20;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .status {
+      background: #fff8e1;
+      color: #6d4c00;
+      padding: 10px;
+      border-radius: 8px;
+      margin-top: 10px;
+      font-size: 14px;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -112,12 +133,11 @@
     <h1>Barcode CSV Scanner</h1>
     <p class="note">Scan product barcodes with your phone camera, then download the list as a CSV file.</p>
 
-    <div id="saveMessage" style="display:none; background:#e8f5e9; color:#1b5e20; padding:12px; border-radius:8px; margin-bottom:12px; font-weight:bold; text-align:center;">
-      Barcode Saved
-    </div>
+    <div id="saveMessage" class="success">Barcode Saved</div>
 
     <div class="card">
       <div id="reader"></div>
+      <div id="scanStatus" class="status"></div>
       <div class="row">
         <button onclick="startScanner()">Start Scanner</button>
         <button class="secondary" onclick="stopScanner()">Stop</button>
@@ -126,12 +146,23 @@
     </div>
 
     <div class="card">
-      <input id="manualBarcode" type="text" placeholder="Enter barcode manually" />
+      <label class="note">Scan confirmation level</label>
+      <select id="confirmLevel" onchange="saveSettings()">
+        <option value="2" selected>Normal: save after same barcode is seen 2 times</option>
+        <option value="3">Safer: save after same barcode is seen 3 times</option>
+        <option value="4">Very safe: save after same barcode is seen 4 times</option>
+      </select>
+      <p class="note">If wrong barcodes are being saved, choose Safer or Very safe.</p>
+    </div>
+
+    <div class="card">
+      <input id="manualBarcode" type="text" inputmode="text" placeholder="Enter barcode manually" />
       <button onclick="addManualBarcode()">Add Manual Barcode</button>
     </div>
 
     <div class="card">
       <div class="count">Total barcodes: <span id="count">0</span></div>
+      <p class="note">Progress is automatically saved on this phone. If the browser closes by accident, reopen the app and your list should still be here.</p>
       <ul id="barcodeList"></ul>
       <button onclick="downloadCSV()">Download CSV</button>
       <button class="danger" onclick="clearAll()">Clear All</button>
@@ -141,8 +172,13 @@
   <script>
     let scanner;
     let barcodes = [];
-    let lastScanned = "";
-    let lastScanTime = 0;
+    let candidateBarcode = "";
+    let candidateCount = 0;
+    let scannerPaused = false;
+
+    const PAUSE_AFTER_SAVE_MS = 1500;
+    const MIN_BARCODE_LENGTH = 6;
+    const MAX_BARCODE_LENGTH = 32;
 
     async function startScanner() {
       if (scanner) return;
@@ -162,7 +198,6 @@
           return;
         }
 
-        // Prefer the back/environment camera when available
         let cameraId = cameras[0].id;
         const backCamera = cameras.find(function(camera) {
           return /back|rear|environment/i.test(camera.label);
@@ -176,18 +211,22 @@
 
         await scanner.start(
           cameraId,
-          { fps: 10, qrbox: { width: 250, height: 150 } },
+          {
+            fps: 6,
+            qrbox: { width: 260, height: 140 },
+            aspectRatio: 1.7,
+            formatsToSupport: [
+              Html5QrcodeSupportedFormats.EAN_13,
+              Html5QrcodeSupportedFormats.EAN_8,
+              Html5QrcodeSupportedFormats.UPC_A,
+              Html5QrcodeSupportedFormats.UPC_E,
+              Html5QrcodeSupportedFormats.CODE_128,
+              Html5QrcodeSupportedFormats.CODE_39,
+              Html5QrcodeSupportedFormats.ITF
+            ]
+          },
           function(decodedText) {
-            const now = Date.now();
-
-            // Prevent duplicate rapid scans of the same barcode
-            if (decodedText === lastScanned && now - lastScanTime < 2000) {
-              return;
-            }
-
-            lastScanned = decodedText;
-            lastScanTime = now;
-            addBarcode(decodedText);
+            handleDetectedBarcode(decodedText);
           },
           function(errorMessage) {
             // Ignore scan errors while camera is searching
@@ -206,7 +245,47 @@
       scanner.stop().then(function() {
         scanner.clear();
         scanner = null;
+        candidateBarcode = "";
+        candidateCount = 0;
+        updateScanStatus("");
       });
+    }
+
+    function handleDetectedBarcode(decodedText) {
+      if (scannerPaused) return;
+
+      const code = String(decodedText).trim();
+
+      // Accept different barcode lengths, but reject very short random reads.
+      if (code.length < MIN_BARCODE_LENGTH || code.length > MAX_BARCODE_LENGTH) {
+        candidateBarcode = "";
+        candidateCount = 0;
+        updateScanStatus("Searching for barcode...");
+        return;
+      }
+
+      if (code === candidateBarcode) {
+        candidateCount++;
+      } else {
+        candidateBarcode = code;
+        candidateCount = 1;
+      }
+
+      const requiredMatches = Number(document.getElementById("confirmLevel").value || 2);
+      updateScanStatus("Checking barcode: " + code + " (" + candidateCount + "/" + requiredMatches + ")");
+
+      if (candidateCount >= requiredMatches) {
+        addBarcode(code);
+        candidateBarcode = "";
+        candidateCount = 0;
+        scannerPaused = true;
+        updateScanStatus("Saved. Move to next product.");
+
+        setTimeout(function() {
+          scannerPaused = false;
+          updateScanStatus("Ready for next barcode.");
+        }, PAUSE_AFTER_SAVE_MS);
+      }
     }
 
     function addBarcode(code) {
@@ -214,11 +293,11 @@
       if (!code) return;
 
       if (barcodes.includes(code)) {
-        alert("This barcode is already in the list.");
+        updateScanStatus("Already saved: " + code);
         return;
       }
 
-      // Save as text so leading zeros stay in the app and CSV
+      // Save as text so leading zeros stay in the app and CSV.
       barcodes.push(code);
       saveToPhone();
       renderList();
@@ -232,6 +311,17 @@
       setTimeout(function() {
         message.style.display = "none";
       }, 1200);
+    }
+
+    function updateScanStatus(text) {
+      const status = document.getElementById("scanStatus");
+      if (!text) {
+        status.style.display = "none";
+        status.textContent = "";
+        return;
+      }
+      status.textContent = text;
+      status.style.display = "block";
     }
 
     function addManualBarcode() {
@@ -266,11 +356,13 @@
         return;
       }
 
-      let csv = "barcode\n";
+      let csv = "barcode
+";
       barcodes.forEach(function(code) {
-        // ="..." encourages Excel to treat the value as text and keep prefix zeros
+        // ="..." encourages Excel to treat the value as text and keep prefix zeros.
         const safeCode = String(code).replaceAll('"', '""');
-        csv += `="${safeCode}"\n`;
+        csv += `="${safeCode}"
+`;
       });
 
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -295,10 +387,25 @@
       localStorage.setItem("barcodeList", JSON.stringify(barcodes));
     }
 
+    function saveSettings() {
+      localStorage.setItem("confirmLevel", document.getElementById("confirmLevel").value);
+    }
+
+    function loadSettings() {
+      const savedConfirmLevel = localStorage.getItem("confirmLevel");
+      if (savedConfirmLevel) {
+        document.getElementById("confirmLevel").value = savedConfirmLevel;
+      }
+    }
+
     function loadFromPhone() {
       const saved = localStorage.getItem("barcodeList");
       if (saved) {
-        barcodes = JSON.parse(saved);
+        try {
+          barcodes = JSON.parse(saved);
+        } catch (error) {
+          barcodes = [];
+        }
       }
       renderList();
     }
@@ -309,6 +416,14 @@
       return div.innerHTML;
     }
 
+    window.addEventListener("beforeunload", saveToPhone);
+    document.addEventListener("visibilitychange", function() {
+      if (document.hidden) {
+        saveToPhone();
+      }
+    });
+
+    loadSettings();
     loadFromPhone();
   </script>
 </body>
