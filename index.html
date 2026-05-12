@@ -112,6 +112,10 @@
     <h1>Barcode CSV Scanner</h1>
     <p class="note">Scan product barcodes with your phone camera, then download the list as a CSV file.</p>
 
+    <div id="saveMessage" style="display:none; background:#e8f5e9; color:#1b5e20; padding:12px; border-radius:8px; margin-bottom:12px; font-weight:bold; text-align:center;">
+      Barcode Saved
+    </div>
+
     <div class="card">
       <div id="reader"></div>
       <div class="row">
@@ -214,9 +218,20 @@
         return;
       }
 
+      // Save as text so leading zeros stay in the app and CSV
       barcodes.push(code);
       saveToPhone();
       renderList();
+      showSaveMessage();
+    }
+
+    function showSaveMessage() {
+      const message = document.getElementById("saveMessage");
+      message.style.display = "block";
+
+      setTimeout(function() {
+        message.style.display = "none";
+      }, 1200);
     }
 
     function addManualBarcode() {
@@ -253,7 +268,9 @@
 
       let csv = "barcode\n";
       barcodes.forEach(function(code) {
-        csv += `"${String(code).replaceAll('"', '""')}"\n`;
+        // ="..." encourages Excel to treat the value as text and keep prefix zeros
+        const safeCode = String(code).replaceAll('"', '""');
+        csv += `="${safeCode}"\n`;
       });
 
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
