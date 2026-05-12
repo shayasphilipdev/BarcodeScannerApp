@@ -1,15 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Barcode CSV Scanner</title>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: Arial, sans-serif;
       margin: 0;
-      background: #f5f5f5;
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
       color: #222;
     }
 
@@ -20,24 +24,30 @@
     }
 
     h1 {
+      margin: 0 0 8px;
       font-size: 24px;
-      margin-bottom: 8px;
     }
 
     .card {
       background: #fff;
       border-radius: 12px;
       padding: 16px;
-      margin-bottom: 16px;
+      margin: 14px 0;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .note {
+      font-size: 14px;
+      color: #666;
+      line-height: 1.4;
     }
 
     #reader {
       width: 100%;
-      min-height: 250px;
-      overflow: hidden;
-      border-radius: 10px;
+      min-height: 260px;
       background: #eee;
+      border-radius: 10px;
+      overflow: hidden;
     }
 
     button, input, select {
@@ -47,14 +57,19 @@
       font-size: 16px;
       border-radius: 8px;
       border: 1px solid #ccc;
-      box-sizing: border-box;
     }
 
     button {
+      border: none;
       background: #111;
       color: #fff;
-      border: none;
+      font-weight: bold;
       cursor: pointer;
+    }
+
+    button:disabled {
+      background: #999;
+      cursor: not-allowed;
     }
 
     button.secondary {
@@ -74,52 +89,13 @@
       flex: 1;
     }
 
-    ul {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-
-    li {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 0;
-      border-bottom: 1px solid #eee;
-      word-break: break-all;
-      gap: 10px;
-    }
-
-    li span {
-      flex: 1;
-    }
-
-    li button {
-      width: auto;
-      margin: 0;
-      padding: 6px 10px;
-      font-size: 14px;
-      background: #b00020;
-    }
-
-    .count {
-      font-weight: bold;
-      margin-bottom: 8px;
-    }
-
-    .note {
-      font-size: 14px;
-      color: #666;
-      line-height: 1.4;
-    }
-
     .success {
       display: none;
       background: #e8f5e9;
       color: #1b5e20;
       padding: 12px;
       border-radius: 8px;
-      margin-bottom: 12px;
+      margin: 12px 0;
       font-weight: bold;
       text-align: center;
     }
@@ -131,254 +107,306 @@
       border-radius: 8px;
       margin-top: 10px;
       font-size: 14px;
-      display: none;
+      white-space: pre-wrap;
       word-break: break-word;
+    }
+
+    .count {
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border-bottom: 1px solid #eee;
+      padding: 10px 0;
+      word-break: break-all;
+    }
+
+    li span {
+      flex: 1;
+    }
+
+    li button {
+      width: auto;
+      margin: 0;
+      padding: 7px 10px;
+      font-size: 14px;
+      background: #b00020;
     }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Barcode CSV Scanner</h1>
-    <p class="note">Scan product barcodes with your phone camera, then download the list as a CSV file.</p>
+    <p class="note">Scan product barcodes, save them on your phone, and download a CSV file.</p>
 
     <div id="saveMessage" class="success">Barcode Saved</div>
 
     <div class="card">
       <div id="reader"></div>
-      <div id="scanStatus" class="status"></div>
+      <div id="status" class="status">App loading...</div>
+
       <div class="row">
-        <button id="startButton" type="button">Start Scanner</button>
-        <button id="stopButton" class="secondary" type="button">Stop</button>
+        <button id="startBtn" type="button">Start Scanner</button>
+        <button id="stopBtn" type="button" class="secondary">Stop</button>
       </div>
-      <p class="note">Use Chrome or Safari on your phone and allow camera permission.</p>
+
+      <p class="note">Use Chrome on Android or Safari on iPhone. Open the Netlify HTTPS link directly in the browser, not inside WhatsApp/Facebook/Gmail.</p>
     </div>
 
     <div class="card">
       <label class="note" for="confirmLevel">Scan confirmation level</label>
       <select id="confirmLevel">
-        <option value="2" selected>Normal: save after same barcode is seen 2 times</option>
-        <option value="3">Safer: save after same barcode is seen 3 times</option>
-        <option value="4">Very safe: save after same barcode is seen 4 times</option>
+        <option value="2">Normal - save after same barcode is detected 2 times</option>
+        <option value="3" selected>Safer - save after same barcode is detected 3 times</option>
+        <option value="4">Very safe - save after same barcode is detected 4 times</option>
       </select>
-      <p class="note">If wrong barcodes are being saved, choose Safer or Very safe.</p>
+      <p class="note">Use 3 or 4 if wrong partial barcodes are being saved.</p>
     </div>
 
     <div class="card">
-      <input id="manualBarcode" type="text" inputmode="text" autocomplete="off" placeholder="Enter barcode manually" />
-      <button id="manualButton" type="button">Add Manual Barcode</button>
+      <input id="manualInput" type="text" inputmode="text" autocomplete="off" placeholder="Enter barcode manually">
+      <button id="manualBtn" type="button">Add Manual Barcode</button>
     </div>
 
     <div class="card">
       <div class="count">Total barcodes: <span id="count">0</span></div>
-      <p class="note">Progress is automatically saved on this phone. If the browser closes by accident, reopen the app and your list should still be here.</p>
+      <p class="note">Progress is saved automatically on this phone. If the app closes accidentally, reopen the same link and your list should still be here.</p>
       <ul id="barcodeList"></ul>
-      <button id="downloadButton" type="button">Download CSV</button>
-      <button id="clearButton" class="danger" type="button">Clear All</button>
+      <button id="downloadBtn" type="button">Download CSV</button>
+      <button id="clearBtn" type="button" class="danger">Clear All</button>
     </div>
   </div>
 
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
   <script>
-    let scanner = null;
-    let barcodes = [];
-    let candidateBarcode = "";
-    let candidateCount = 0;
-    let scannerPaused = false;
+    var scanner = null;
+    var barcodes = [];
+    var candidateBarcode = "";
+    var candidateCount = 0;
+    var scannerPaused = false;
+    var libraryReady = false;
 
-    const STORAGE_KEY = "barcodeList";
-    const CONFIRM_LEVEL_KEY = "confirmLevel";
-    const PAUSE_AFTER_SAVE_MS = 1500;
-    const MIN_BARCODE_LENGTH = 6;
-    const MAX_BARCODE_LENGTH = 64;
+    var STORAGE_KEY = "barcodeScannerApp_barcodes";
+    var CONFIRM_KEY = "barcodeScannerApp_confirmLevel";
+    var PAUSE_AFTER_SAVE_MS = 1800;
+    var MIN_BARCODE_LENGTH = 4;
+    var MAX_BARCODE_LENGTH = 80;
 
-    document.addEventListener("DOMContentLoaded", function() {
-      document.getElementById("startButton").addEventListener("click", startScanner);
-      document.getElementById("stopButton").addEventListener("click", stopScanner);
-      document.getElementById("manualButton").addEventListener("click", addManualBarcode);
-      document.getElementById("downloadButton").addEventListener("click", downloadCSV);
-      document.getElementById("clearButton").addEventListener("click", clearAll);
-      document.getElementById("confirmLevel").addEventListener("change", saveSettings);
+    var startBtn = document.getElementById("startBtn");
+    var stopBtn = document.getElementById("stopBtn");
+    var manualBtn = document.getElementById("manualBtn");
+    var downloadBtn = document.getElementById("downloadBtn");
+    var clearBtn = document.getElementById("clearBtn");
+    var manualInput = document.getElementById("manualInput");
+    var confirmLevel = document.getElementById("confirmLevel");
+    var statusBox = document.getElementById("status");
+    var saveMessage = document.getElementById("saveMessage");
+    var listBox = document.getElementById("barcodeList");
+    var countBox = document.getElementById("count");
 
+    startBtn.addEventListener("click", startScanner);
+    stopBtn.addEventListener("click", stopScanner);
+    manualBtn.addEventListener("click", addManualBarcode);
+    downloadBtn.addEventListener("click", downloadCSV);
+    clearBtn.addEventListener("click", clearAll);
+    confirmLevel.addEventListener("change", saveSettings);
+
+    bootApp();
+
+    function bootApp() {
       loadSettings();
       loadFromPhone();
-    });
 
-    async function startScanner() {
-      if (scanner) {
-        updateScanStatus("Scanner is already running.");
-        return;
+      if (window.isSecureContext) {
+        setStatus("Ready. Tap Start Scanner.");
+      } else {
+        setStatus("This page is not running on HTTPS. Camera will not work. Use your Netlify https:// link.");
       }
 
+      setTimeout(function() {
+        if (typeof Html5Qrcode === "undefined") {
+          libraryReady = false;
+          setStatus("Scanner library did not load. Check internet connection, then refresh the page.");
+        } else {
+          libraryReady = true;
+          setStatus("Ready. Tap Start Scanner.");
+        }
+      }, 800);
+    }
+
+    async function startScanner() {
       try {
+        setStatus("Start button clicked. Checking camera...");
+
         if (!window.isSecureContext) {
-          updateScanStatus("Camera needs HTTPS. Please use your Netlify HTTPS link.");
-          alert("Camera needs HTTPS. Please use your Netlify HTTPS link.");
+          setStatus("Camera blocked: this page must be HTTPS. Use your Netlify link.");
           return;
         }
 
         if (typeof Html5Qrcode === "undefined") {
-          updateScanStatus("Scanner library did not load. Check your internet connection and refresh the page.");
-          alert("Scanner library did not load. Refresh the page and check your internet connection.");
+          setStatus("Scanner library is not loaded. Refresh the page. If it still fails, your internet may be blocking the library CDN.");
           return;
         }
 
+        if (scanner !== null) {
+          setStatus("Scanner is already running.");
+          return;
+        }
+
+        startBtn.disabled = true;
+        setStatus("Requesting camera permission...");
+
         scanner = new Html5Qrcode("reader");
-        updateScanStatus("Starting camera...");
 
         await scanner.start(
           { facingMode: "environment" },
           {
             fps: 5,
-            qrbox: { width: 260, height: 140 }
+            qrbox: {
+              width: 260,
+              height: 140
+            }
           },
           function(decodedText) {
-            handleDetectedBarcode(decodedText);
+            processDetectedBarcode(decodedText);
           },
           function() {
-            // Ignore normal scan errors while the camera is looking for a barcode.
+            // Normal while searching. Do not show every scan error.
           }
         );
 
-        updateScanStatus("Camera started. Point at a barcode.");
+        setStatus("Camera started. Point the box at the barcode.");
       } catch (error) {
         console.error(error);
         scanner = null;
-        const message = getFriendlyCameraError(error);
-        updateScanStatus(message);
-        alert(message);
+        startBtn.disabled = false;
+        setStatus(cameraErrorMessage(error));
       }
     }
 
     async function stopScanner() {
-      if (!scanner) {
-        updateScanStatus("Scanner is not running.");
-        return;
-      }
-
       try {
+        if (scanner === null) {
+          setStatus("Scanner is not running.");
+          return;
+        }
+
         await scanner.stop();
         scanner.clear();
+        scanner = null;
+        candidateBarcode = "";
+        candidateCount = 0;
+        scannerPaused = false;
+        startBtn.disabled = false;
+        setStatus("Scanner stopped.");
       } catch (error) {
         console.error(error);
+        scanner = null;
+        startBtn.disabled = false;
+        setStatus("Scanner stopped with warning: " + String(error));
       }
-
-      scanner = null;
-      candidateBarcode = "";
-      candidateCount = 0;
-      scannerPaused = false;
-      updateScanStatus("Scanner stopped.");
     }
 
-    function handleDetectedBarcode(decodedText) {
+    function processDetectedBarcode(rawValue) {
       if (scannerPaused) return;
 
-      const code = String(decodedText || "").trim();
+      var code = String(rawValue || "").trim();
 
       if (code.length < MIN_BARCODE_LENGTH || code.length > MAX_BARCODE_LENGTH) {
         candidateBarcode = "";
         candidateCount = 0;
-        updateScanStatus("Searching for a clear barcode...");
+        setStatus("Searching for a clear barcode...");
         return;
       }
 
       if (code === candidateBarcode) {
-        candidateCount += 1;
+        candidateCount = candidateCount + 1;
       } else {
         candidateBarcode = code;
         candidateCount = 1;
       }
 
-      const requiredMatches = Number(document.getElementById("confirmLevel").value || 2);
-      updateScanStatus("Checking barcode: " + code + " (" + candidateCount + "/" + requiredMatches + ")");
+      var needed = Number(confirmLevel.value || 3);
+      setStatus("Checking: " + code + "\nConfirmation: " + candidateCount + " / " + needed);
 
-      if (candidateCount >= requiredMatches) {
+      if (candidateCount >= needed) {
         addBarcode(code, true);
         candidateBarcode = "";
         candidateCount = 0;
         scannerPaused = true;
-        updateScanStatus("Saved. Move to the next product.");
+        setStatus("Saved. Move to the next product.");
 
         setTimeout(function() {
           scannerPaused = false;
-          updateScanStatus("Ready for next barcode.");
+          setStatus("Ready for next barcode.");
         }, PAUSE_AFTER_SAVE_MS);
       }
     }
 
     function addBarcode(code, fromScanner) {
-      const cleanCode = String(code || "").trim();
-      if (!cleanCode) return;
+      var cleanCode = String(code || "").trim();
+      if (cleanCode === "") return;
 
       if (barcodes.indexOf(cleanCode) !== -1) {
-        updateScanStatus("Already saved: " + cleanCode);
+        setStatus("Already saved: " + cleanCode);
         return;
       }
 
       barcodes.push(cleanCode);
       saveToPhone();
       renderList();
-      showSaveMessage();
+      showSavedMessage();
 
       if (!fromScanner) {
-        updateScanStatus("Manual barcode saved: " + cleanCode);
+        setStatus("Manual barcode saved: " + cleanCode);
       }
     }
 
     function addManualBarcode() {
-      const input = document.getElementById("manualBarcode");
-      addBarcode(input.value, false);
-      input.value = "";
-      input.focus();
-    }
-
-    function showSaveMessage() {
-      const message = document.getElementById("saveMessage");
-      message.style.display = "block";
-
-      setTimeout(function() {
-        message.style.display = "none";
-      }, 1200);
-    }
-
-    function updateScanStatus(text) {
-      const status = document.getElementById("scanStatus");
-      if (!text) {
-        status.style.display = "none";
-        status.textContent = "";
-        return;
-      }
-      status.textContent = text;
-      status.style.display = "block";
-    }
-
-    function removeBarcode(index) {
-      barcodes.splice(index, 1);
-      saveToPhone();
-      renderList();
+      addBarcode(manualInput.value, false);
+      manualInput.value = "";
+      manualInput.focus();
     }
 
     function renderList() {
-      const list = document.getElementById("barcodeList");
-      const count = document.getElementById("count");
+      listBox.innerHTML = "";
+      countBox.textContent = String(barcodes.length);
 
-      list.innerHTML = "";
-      count.textContent = barcodes.length;
+      for (var i = 0; i < barcodes.length; i++) {
+        addBarcodeRow(barcodes[i], i);
+      }
+    }
 
-      barcodes.forEach(function(code, index) {
-        const li = document.createElement("li");
-        const span = document.createElement("span");
-        const button = document.createElement("button");
+    function addBarcodeRow(code, index) {
+      var li = document.createElement("li");
+      var span = document.createElement("span");
+      var removeBtn = document.createElement("button");
 
-        span.textContent = (index + 1) + ". " + code;
-        button.textContent = "Remove";
-        button.type = "button";
-        button.addEventListener("click", function() {
-          removeBarcode(index);
-        });
+      span.textContent = String(index + 1) + ". " + code;
+      removeBtn.textContent = "Remove";
+      removeBtn.type = "button";
 
-        li.appendChild(span);
-        li.appendChild(button);
-        list.appendChild(li);
+      removeBtn.addEventListener("click", function() {
+        barcodes.splice(index, 1);
+        saveToPhone();
+        renderList();
       });
+
+      li.appendChild(span);
+      li.appendChild(removeBtn);
+      listBox.appendChild(li);
     }
 
     function downloadCSV() {
@@ -387,18 +415,16 @@
         return;
       }
 
-      let csv = "barcode
-";
+      var csv = "barcode\n";
 
-      barcodes.forEach(function(code) {
-        const safeCode = String(code).replace(/"/g, '""');
-        csv += '="' + safeCode + '"
-';
-      });
+      for (var i = 0; i < barcodes.length; i++) {
+        var value = String(barcodes[i]).replace(/"/g, '""');
+        csv = csv + '="' + value + '"\n';
+      }
 
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
+      var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement("a");
 
       link.href = url;
       link.download = "barcode-list.csv";
@@ -409,65 +435,96 @@
     }
 
     function clearAll() {
-      if (!confirm("Clear all scanned barcodes?")) return;
+      var confirmed = confirm("Clear all saved barcodes from this phone?");
+      if (!confirmed) return;
+
       barcodes = [];
       saveToPhone();
       renderList();
-      updateScanStatus("All barcodes cleared.");
+      setStatus("All barcodes cleared.");
     }
 
     function saveToPhone() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(barcodes));
-    }
-
-    function saveSettings() {
-      const confirmLevel = document.getElementById("confirmLevel").value;
-      localStorage.setItem(CONFIRM_LEVEL_KEY, confirmLevel);
-    }
-
-    function loadSettings() {
-      const savedConfirmLevel = localStorage.getItem(CONFIRM_LEVEL_KEY);
-      if (savedConfirmLevel) {
-        document.getElementById("confirmLevel").value = savedConfirmLevel;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(barcodes));
+      } catch (error) {
+        setStatus("Warning: progress could not be saved on this phone.");
       }
     }
 
     function loadFromPhone() {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
+      try {
+        var saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          var parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
-            barcodes = parsed.map(function(code) {
-              return String(code);
+            barcodes = parsed.map(function(item) {
+              return String(item);
             });
           }
-        } catch (error) {
-          barcodes = [];
         }
+      } catch (error) {
+        barcodes = [];
       }
+
       renderList();
     }
 
-    function getFriendlyCameraError(error) {
-      const errorText = String((error && (error.message || error.name)) || error || "");
+    function saveSettings() {
+      try {
+        localStorage.setItem(CONFIRM_KEY, confirmLevel.value);
+      } catch (error) {
+        // Ignore settings save error.
+      }
+    }
 
-      if (/permission|denied|notallowed/i.test(errorText)) {
-        return "Camera permission denied. In Chrome, allow Camera permission for this website and try again.";
+    function loadSettings() {
+      try {
+        var saved = localStorage.getItem(CONFIRM_KEY);
+        if (saved) {
+          confirmLevel.value = saved;
+        }
+      } catch (error) {
+        // Ignore settings load error.
+      }
+    }
+
+    function showSavedMessage() {
+      saveMessage.style.display = "block";
+      setTimeout(function() {
+        saveMessage.style.display = "none";
+      }, 1200);
+    }
+
+    function setStatus(message) {
+      statusBox.textContent = message;
+    }
+
+    function cameraErrorMessage(error) {
+      var text = String((error && (error.name || error.message)) || error || "Unknown error");
+
+      if (/NotAllowedError|Permission|denied|NotAllowed/i.test(text)) {
+        return "Camera permission denied. Open Chrome Settings > Site settings > Camera, allow this site, then refresh.";
       }
 
-      if (/notfound|devicesnotfound|no camera/i.test(errorText)) {
+      if (/NotFoundError|DevicesNotFound|no camera/i.test(text)) {
         return "No camera found on this device.";
       }
 
-      if (/notreadable|trackstart/i.test(errorText)) {
-        return "Camera is already being used by another app. Close other camera apps and try again.";
+      if (/NotReadableError|TrackStartError|Could not start video source/i.test(text)) {
+        return "Camera is busy. Close other apps using the camera and try again.";
       }
 
-      return "Camera could not start: " + errorText;
+      if (/OverconstrainedError|Constraint/i.test(text)) {
+        return "Back camera could not start. Try refreshing the page or changing browser camera permission.";
+      }
+
+      return "Camera could not start: " + text;
     }
 
-    window.addEventListener("beforeunload", saveToPhone);
+    window.addEventListener("beforeunload", function() {
+      saveToPhone();
+    });
 
     document.addEventListener("visibilitychange", function() {
       if (document.hidden) {
